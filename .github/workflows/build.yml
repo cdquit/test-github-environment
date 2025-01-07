@@ -13,6 +13,7 @@ jobs:
         run: echo "build dev"
   qa:
     runs-on: ubuntu-latest
+    needs: dev
     environment:
       name: qa
     steps:
@@ -20,6 +21,7 @@ jobs:
         run: echo "build qa"
   prod:
     runs-on: ubuntu-latest
+    needs: qa
     environment:
       name: prod
     steps:

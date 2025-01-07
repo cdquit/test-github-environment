@@ -12,6 +12,7 @@ jobs:
       - name: Build dev
         run: echo "build dev"
   qa:
+    if: false
     runs-on: ubuntu-latest
     needs: dev
     environment:

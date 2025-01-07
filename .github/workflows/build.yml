@@ -1,0 +1,186 @@
+name: build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  dev:
+    runs-on: ubuntu-latest
+    environment:
+      name: dev
+    steps:
+      - name: Build dev
+        run: echo "build dev"
+  qa:
+    runs-on: ubuntu-latest
+    environment:
+      name: qa
+    steps:
+      - name: Build qa
+        run: echo "build qa"
+  prod:
+    runs-on: ubuntu-latest
+    environment:
+      name: prod
+    steps:
+      - name: Build prod
+        run: echo "build prod"
+
+  # ios:
+  #   if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip_ci_ios') }}
+  #   runs-on: [self-hosted, macOS, macos-selfhosted-14-sh, mobile-wallet]
+
+  #   concurrency:
+  #     group: ${{ github.head_ref || github.run_id }}
+  #     cancel-in-progress: true
+
+  #   # Manual steps to configure iOS env on self-hosted Github runner
+  #   # login into apple developer account download and install xcode 15.2, should use the same folder as in macos-14
+  #   # https://developer.apple.com/services-account/download?path=/Developer_Tools/Xcode_15.2/Xcode_15.2.xip
+  #   env:
+  #     DEVELOPER_DIR: /Applications/Xcode_15.2.app
+  #     NODE_OPTIONS: "--max-old-space-size=5120"
+
+  #   timeout-minutes: 105
+
+  #   steps:
+  #     # --------------------------------- Initialize vars
+  #     - name: Initialize IS_PR_BUILD
+  #       id: IS_PR_BUILD
+  #       if:
+  #         github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action ==
+  #         'synchronize' || github.event.action == 'reopened' || github.event.action == 'labeled')
+  #       run: echo "result=true" >> $GITHUB_OUTPUT
+
+  #     - name: Initialize IS_MASTER_BUILD
+  #       id: IS_MASTER_BUILD
+  #       if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+  #       run: echo "result=true" >> $GITHUB_OUTPUT
+
+  #     # --- is QA, STAGING or PROD build
+  #     - name: Initialize IS_ENV_TAG_PUSH
+  #       id: IS_ENV_TAG_PUSH
+  #       if:
+  #         github.event_name == 'push' && (github.ref == 'refs/tags/qa' || github.ref == 'refs/tags/staging' ||
+  #         github.ref == 'refs/tags/prod')
+  #       run: echo "result=true" >> $GITHUB_OUTPUT
+
+  #     # --------------------------------- Setup environment
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         # We need all git history for native release build numbers
+  #         fetch-depth: 0
+
+  #     # This step takes up more time than it's saving because our self hosted machine take 3 mins to download the 2GB cache
+  #     # from the github servers. It takes 6 mins to upload the cache to github servers, so it's disabled until we figure out an optimisation
+  #     - uses: actions/setup-node@v4
+  #       with:
+  #         node-version: "18.x"
+  #         registry-url: "https://registry.npmjs.org"
+  #     #     cache: yarn
+
+  #     - name: Self Hosted Setup
+  #       run: |
+  #         rm -f /tmp/ssh-auth.sock.${{ github.run_id }} || true
+  #         rm -rf ~/Library/Developer/Xcode/DerivedData/* || true
+  #         rm -rf ~/Library/Developer/Xcode/Archives/* || true
+  #         rm -rf ./ios/build || true
+  #         whoami
+  #         echo $SHELL
+  #         ruby -v
+  #         bundle -v
+  #         node -v
+
+  #     - name: Setup git deploy key for mobile-secrets repository
+  #       uses: webfactory/ssh-agent@dc588b651fe13675774614f8e6a936a468676387 #v0.9.0
+  #       with:
+  #         ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY_MOBILE_SECRETS }}
+  #         ssh-auth-sock: /tmp/ssh-auth.sock.${{ github.run_id }}
+
+  #     - name: Ruby gems cache
+  #       uses: actions/cache@v4
+  #       id: gem-cache
+  #       with:
+  #         path: /usr/local/lib/ruby/gems
+  #         key: ${{ runner.os }}-${{ hashFiles('Gemfile.lock') }}
+
+  #     - name: Run brew bundle
+  #       run: brew bundle && gm version
+
+  #     - name: Install dotenvx
+  #       shell: bash
+  #       run: |
+  #         brew install dotenvx/brew/dotenvx
+
+  #     - run: yarn install --frozen-lockfile
+  #       env:
+  #         NODE_AUTH_TOKEN: ${{ secrets.NPMJS_TOKEN_KIBISIS }}
+
+  #     - name: "get package version"
+  #       id: package-version
+  #       run: |
+  #         PACKAGE_JSON_PATH="${1-.}"
+  #         echo "Reading package.json from ${PACKAGE_JSON_PATH}/package.json"
+  #         PACKAGE_VERSION=$(cat ${PACKAGE_JSON_PATH}/package.json | grep version | head -1 | awk -F: '{ print $2 }' | sed 's/[",]//g' | tr -d '[[:space:]]')
+  #         echo "current-version=$PACKAGE_VERSION" >> $GITHUB_OUTPUT
+
+  #     - name: Setup Ruby
+  #       uses: ruby/setup-ruby@f26937343756480a8cb3ae1f623b9c8d89ed6984 # pin@v1.196.0
+  #       with:
+  #         ruby-version: "3.0.6"
+  #         bundler-cache: true
+
+  #     # --------------------------------- Pull request checks and build ipa
+  #     - name: Fastlane Action - check on PR
+  #       if: steps.IS_PR_BUILD.outputs.result
+  #       env:
+  #         MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+  #         WALLET_BACKEND_API_KEY: ${{ secrets.WALLET_BACKEND_API_KEY_DEV }}
+  #         MODE: "appstore"
+  #         SENTRY_DISABLE_AUTO_UPLOAD: true
+  #       run: |
+  #         ./scripts/runWithConfig.sh dev 'yarn preBuildChecks'
+  #         ./scripts/runWithConfig.sh dev 'bundle exec fastlane ios dev_ipa'
+
+  #     # --------------------------------- Push master step
+  #     - name: Build & deploy ios dev app on push
+  #       if: steps.IS_MASTER_BUILD.outputs.result
+  #       #if: true # ad-hoc PR build push to DEV env and able to test on device, update runners config above "runners: [[self-hosted, macos, X64, general, runner03]]"
+  #       env:
+  #         MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+  #         FASTLANE_PASSWORD: ${{ secrets.FASTLANE_PASSWORD }}
+  #         APPLE_ID: ${{ secrets.APPLE_ID }}
+  #         APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+  #         APPLE_ISSUER_ID: ${{ secrets.APPLE_ISSUER_ID }}
+  #         APPLE_KEY_CONTENT: ${{ secrets.APPLE_KEY_CONTENT }}
+  #         WALLET_BACKEND_API_KEY: ${{ secrets.WALLET_BACKEND_API_KEY_DEV }}
+  #         SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+  #         FEATURE_MDOC_ONLINE_PRESENTATION: true
+  #       run: |
+  #         ./scripts/runWithConfig.sh dev 'yarn preBuildChecks'
+  #         ./scripts/runWithConfig.sh dev 'bundle exec fastlane ios dev'
+
+  #     # --------------------------------- Push env tag step
+  #     - name: Set QA Env Keys
+  #       if: ${{ github.ref_name == 'qa' }}
+  #       run: echo "WALLET_BACKEND_API_KEY=${{ secrets.WALLET_BACKEND_API_KEY_QA }}" >> $GITHUB_ENV
+
+  #     - name: Set PROD Env Keys
+  #       if: ${{ github.ref_name == 'prod' }}
+  #       run: echo "WALLET_BACKEND_API_KEY=${{ secrets.WALLET_BACKEND_API_KEY_PROD }}" >> $GITHUB_ENV
+
+  #     - name: Build & deploy ios app on qa, staging or prod env tag push
+  #       if: steps.IS_ENV_TAG_PUSH.outputs.result
+  #       env:
+  #         MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+  #         FASTLANE_PASSWORD: ${{ secrets.FASTLANE_PASSWORD }}
+  #         APPLE_ID: ${{ secrets.APPLE_ID }}
+  #         APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+  #         APPLE_ISSUER_ID: ${{ secrets.APPLE_ISSUER_ID }}
+  #         APPLE_KEY_CONTENT: ${{ secrets.APPLE_KEY_CONTENT }}
+  #         WALLET_BACKEND_API_KEY: ${{ env.WALLET_BACKEND_API_KEY }}
+  #         SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+  #         FEATURE_MDOC_ONLINE_PRESENTATION: true
+  #       run: |
+  #         ./scripts/runWithConfig.sh ${{ github.ref_name }} 'yarn preBuildChecks'
+  #         ./scripts/runWithConfig.sh ${{ github.ref_name }} 'bundle exec fastlane ios ${{ github.ref_name }}'
